@@ -1,0 +1,1038 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "3d015d9a",
+   "metadata": {},
+   "source": [
+    "# Mini Project — Exploratory Data Analysis on India's COVID-19 Data\n",
+    "\n",
+    "**Goal:** Uncover state-wise trends, recovery rates, and vaccination progress in India's COVID-19 pandemic, using nothing but the tools from Module 1: NumPy, Pandas, and Matplotlib/Seaborn.\n",
+    "\n",
+    "**Data sources** (both loaded live, no download needed):\n",
+    "- **Case data:** `imdevskp/covid-19-india-data` — daily state-wise confirmed/recovered/death counts, sourced from MoHFW and covid19india.org (30 Jan 2020 – 6 Aug 2020).\n",
+    "- **Vaccination data:** Our World in Data (OWID) — India's national vaccination totals (15 Jan 2021 onward).\n",
+    "\n",
+    "**Workflow:** Load → Inspect → Clean → Explore (groupby/pivot) → Visualise (12 charts) → Summarise findings.\n",
+    "\n",
+    "> **Note on the data window:** the case dataset covers the first wave of the pandemic in India (through Aug 2020), before vaccines existed. The vaccination dataset picks up separately from Jan 2021. We treat these as two connected parts of the same story: how the outbreak spread state by state, and how the vaccination rollout progressed afterward.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c220e20f",
+   "metadata": {},
+   "source": [
+    "## 1. Setup"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "b06d4494",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:17.544495Z",
+     "iopub.status.busy": "2026-08-21T02:52:17.544348Z",
+     "iopub.status.idle": "2026-08-21T02:52:18.855656Z",
+     "shell.execute_reply": "2026-08-21T02:52:18.854539Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Ready.\n"
+     ]
+    }
+   ],
+   "source": [
+    "import numpy as np\n",
+    "import pandas as pd\n",
+    "import matplotlib.pyplot as plt\n",
+    "import seaborn as sns\n",
+    "\n",
+    "sns.set_theme(style=\"whitegrid\")\n",
+    "plt.rcParams[\"figure.dpi\"] = 110\n",
+    "pd.set_option(\"display.max_columns\", 20)\n",
+    "\n",
+    "print(\"Ready.\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "3b796397",
+   "metadata": {},
+   "source": [
+    "## 2. Load the Data\n",
+    "\n",
+    "We read both CSVs straight from their public GitHub URLs with `pd.read_csv()` — exactly the File I/O skill from Module 1."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3e4f569d",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:18.858203Z",
+     "iopub.status.busy": "2026-08-21T02:52:18.857356Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.262875Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.261774Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Cases shape: (4692, 10)\n",
+      "Vaccination shape: (1250, 8)\n"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>Date</th>\n",
+       "      <th>Name of State / UT</th>\n",
+       "      <th>Latitude</th>\n",
+       "      <th>Longitude</th>\n",
+       "      <th>Total Confirmed cases</th>\n",
+       "      <th>Death</th>\n",
+       "      <th>Cured/Discharged/Migrated</th>\n",
+       "      <th>New cases</th>\n",
+       "      <th>New deaths</th>\n",
+       "      <th>New recovered</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>2020-01-30</td>\n",
+       "      <td>Kerala</td>\n",
+       "      <td>10.8505</td>\n",
+       "      <td>76.2711</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>2020-01-31</td>\n",
+       "      <td>Kerala</td>\n",
+       "      <td>10.8505</td>\n",
+       "      <td>76.2711</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>2020-02-01</td>\n",
+       "      <td>Kerala</td>\n",
+       "      <td>10.8505</td>\n",
+       "      <td>76.2711</td>\n",
+       "      <td>2.0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>2020-02-02</td>\n",
+       "      <td>Kerala</td>\n",
+       "      <td>10.8505</td>\n",
+       "      <td>76.2711</td>\n",
+       "      <td>3.0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>2020-02-03</td>\n",
+       "      <td>Kerala</td>\n",
+       "      <td>10.8505</td>\n",
+       "      <td>76.2711</td>\n",
+       "      <td>3.0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "         Date Name of State / UT  Latitude  Longitude  Total Confirmed cases  \\\n",
+       "0  2020-01-30             Kerala   10.8505    76.2711                    1.0   \n",
+       "1  2020-01-31             Kerala   10.8505    76.2711                    1.0   \n",
+       "2  2020-02-01             Kerala   10.8505    76.2711                    2.0   \n",
+       "3  2020-02-02             Kerala   10.8505    76.2711                    3.0   \n",
+       "4  2020-02-03             Kerala   10.8505    76.2711                    3.0   \n",
+       "\n",
+       "  Death  Cured/Discharged/Migrated  New cases  New deaths  New recovered  \n",
+       "0     0                        0.0          0           0              0  \n",
+       "1     0                        0.0          0           0              0  \n",
+       "2     0                        0.0          1           0              0  \n",
+       "3     0                        0.0          1           0              0  \n",
+       "4     0                        0.0          0           0              0  "
+      ]
+     },
+     "execution_count": 2,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "cases = pd.read_csv(\n",
+    "    \"https://raw.githubusercontent.com/imdevskp/covid-19-india-data/master/complete.csv\"\n",
+    ")\n",
+    "vax = pd.read_csv(\n",
+    "    \"https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/country_data/India.csv\"\n",
+    ")\n",
+    "\n",
+    "print(\"Cases shape:\", cases.shape)\n",
+    "print(\"Vaccination shape:\", vax.shape)\n",
+    "cases.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8dc525ff",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "vax.shape"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a2a024a5",
+   "metadata": {},
+   "source": [
+    "## 3. Inspect Before Touching Anything\n",
+    "\n",
+    "Always check shape, dtypes, and missing values first — this tells you exactly what cleaning is needed."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5889ea3f",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.265346Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.264636Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.270996Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.269929Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "Date                             str\n",
+       "Name of State / UT               str\n",
+       "Latitude                     float64\n",
+       "Longitude                    float64\n",
+       "Total Confirmed cases        float64\n",
+       "Death                            str\n",
+       "Cured/Discharged/Migrated    float64\n",
+       "New cases                      int64\n",
+       "New deaths                     int64\n",
+       "New recovered                  int64\n",
+       "dtype: object"
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "cases.dtypes"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "492c7936",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.272801Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.272596Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.279542Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.278786Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "Date                         0\n",
+       "Name of State / UT           0\n",
+       "Latitude                     0\n",
+       "Longitude                    0\n",
+       "Total Confirmed cases        0\n",
+       "Death                        0\n",
+       "Cured/Discharged/Migrated    0\n",
+       "New cases                    0\n",
+       "New deaths                   0\n",
+       "New recovered                0\n",
+       "dtype: int64"
+      ]
+     },
+     "execution_count": 4,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "cases.isna().sum()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "f2e8cf81",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.281064Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.280918Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.287432Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.286552Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Number of unique state/UT names: 40\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "['Andaman and Nicobar Islands',\n",
+       " 'Andhra Pradesh',\n",
+       " 'Arunachal Pradesh',\n",
+       " 'Assam',\n",
+       " 'Bihar',\n",
+       " 'Chandigarh',\n",
+       " 'Chhattisgarh',\n",
+       " 'Dadra and Nagar Haveli and Daman and Diu',\n",
+       " 'Delhi',\n",
+       " 'Goa',\n",
+       " 'Gujarat',\n",
+       " 'Haryana',\n",
+       " 'Himachal Pradesh',\n",
+       " 'Jammu and Kashmir',\n",
+       " 'Jharkhand',\n",
+       " 'Karnataka',\n",
+       " 'Kerala',\n",
+       " 'Ladakh',\n",
+       " 'Madhya Pradesh',\n",
+       " 'Maharashtra',\n",
+       " 'Manipur',\n",
+       " 'Meghalaya',\n",
+       " 'Mizoram',\n",
+       " 'Nagaland',\n",
+       " 'Odisha',\n",
+       " 'Puducherry',\n",
+       " 'Punjab',\n",
+       " 'Rajasthan',\n",
+       " 'Sikkim',\n",
+       " 'Tamil Nadu',\n",
+       " 'Telangana',\n",
+       " 'Telangana***',\n",
+       " 'Telengana',\n",
+       " 'Tripura',\n",
+       " 'Union Territory of Chandigarh',\n",
+       " 'Union Territory of Jammu and Kashmir',\n",
+       " 'Union Territory of Ladakh',\n",
+       " 'Uttar Pradesh',\n",
+       " 'Uttarakhand',\n",
+       " 'West Bengal']"
+      ]
+     },
+     "execution_count": 5,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "print(\"Number of unique state/UT names:\", cases[\"Name of State / UT\"].nunique())\n",
+    "sorted(cases[\"Name of State / UT\"].unique())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "08979bae",
+   "metadata": {},
+   "source": [
+    "Two problems jump out immediately:\n",
+    "\n",
+    "1. **`Death` is stored as text (object), not a number** — likely because of stray characters somewhere in the column.\n",
+    "2. **The same state appears under multiple spellings**: `Telangana`, `Telengana`, and `Telangana***` are all the same state. Similarly, a few Union Territories are listed twice — once plainly (`Ladakh`) and once with a `\"Union Territory of ...\"` prefix.\n",
+    "\n",
+    "This is exactly the kind of real-world messiness the handbook's Data Leakage/cleaning ideas prepare you for — we fix it before doing any analysis, never after."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "d7b4c311",
+   "metadata": {},
+   "source": [
+    "## 4. Clean the Data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "f57ef862",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.290218Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.289461Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.312288Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.311274Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Clean state count: 35\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "date             datetime64[us]\n",
+       "state                       str\n",
+       "lat                     float64\n",
+       "long                    float64\n",
+       "confirmed                 int64\n",
+       "deaths                    int64\n",
+       "cured                     int64\n",
+       "new_cases                 int64\n",
+       "new_deaths                int64\n",
+       "new_recovered             int64\n",
+       "active                    int64\n",
+       "dtype: object"
+      ]
+     },
+     "execution_count": 6,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Rename to clean, snake_case column names\n",
+    "cases.columns = [\n",
+    "    \"date\", \"state\", \"lat\", \"long\", \"confirmed\",\n",
+    "    \"deaths\", \"cured\", \"new_cases\", \"new_deaths\", \"new_recovered\",\n",
+    "]\n",
+    "\n",
+    "# Fix data types\n",
+    "cases[\"date\"] = pd.to_datetime(cases[\"date\"])\n",
+    "cases[\"deaths\"] = pd.to_numeric(cases[\"deaths\"], errors=\"coerce\").fillna(0).astype(int)\n",
+    "cases[\"confirmed\"] = cases[\"confirmed\"].astype(int)\n",
+    "cases[\"cured\"] = cases[\"cured\"].astype(int)\n",
+    "\n",
+    "# Fix inconsistent state names\n",
+    "name_fix = {\n",
+    "    \"Telangana***\": \"Telangana\",\n",
+    "    \"Telengana\": \"Telangana\",\n",
+    "    \"Union Territory of Jammu and Kashmir\": \"Jammu and Kashmir\",\n",
+    "    \"Union Territory of Ladakh\": \"Ladakh\",\n",
+    "    \"Union Territory of Chandigarh\": \"Chandigarh\",\n",
+    "}\n",
+    "cases[\"state\"] = cases[\"state\"].replace(name_fix)\n",
+    "\n",
+    "# Drop any exact duplicate (date, state) rows this merge might create\n",
+    "cases = cases.drop_duplicates(subset=[\"date\", \"state\"]).sort_values([\"state\", \"date\"]).reset_index(drop=True)\n",
+    "\n",
+    "# A derived column: active cases = confirmed - deaths - recovered\n",
+    "cases[\"active\"] = cases[\"confirmed\"] - cases[\"deaths\"] - cases[\"cured\"]\n",
+    "\n",
+    "print(\"Clean state count:\", cases[\"state\"].nunique())\n",
+    "cases.dtypes"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "f0599487",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.314392Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.313813Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.319280Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.318482Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "np.int64(0)"
+      ]
+     },
+     "execution_count": 7,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "cases.isna().sum().sum()   # should be 0 -- fully clean now"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ebee73a5",
+   "metadata": {},
+   "source": [
+    "## 5. National-Level Summary (groupby)\n",
+    "\n",
+    "Let's aggregate all states together, per date, using `groupby` — the Module 1 workhorse."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "30616b7b",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.321282Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.320634Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.334714Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.333845Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>date</th>\n",
+       "      <th>confirmed</th>\n",
+       "      <th>deaths</th>\n",
+       "      <th>cured</th>\n",
+       "      <th>recovery_rate</th>\n",
+       "      <th>death_rate</th>\n",
+       "      <th>new_confirmed</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>181</th>\n",
+       "      <td>2020-08-02</td>\n",
+       "      <td>1750723</td>\n",
+       "      <td>37364</td>\n",
+       "      <td>1145629</td>\n",
+       "      <td>65.44</td>\n",
+       "      <td>2.13</td>\n",
+       "      <td>54735.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>182</th>\n",
+       "      <td>2020-08-03</td>\n",
+       "      <td>1803695</td>\n",
+       "      <td>38135</td>\n",
+       "      <td>1186203</td>\n",
+       "      <td>65.77</td>\n",
+       "      <td>2.11</td>\n",
+       "      <td>52972.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>183</th>\n",
+       "      <td>2020-08-04</td>\n",
+       "      <td>1855745</td>\n",
+       "      <td>38938</td>\n",
+       "      <td>1230509</td>\n",
+       "      <td>66.31</td>\n",
+       "      <td>2.10</td>\n",
+       "      <td>52050.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>184</th>\n",
+       "      <td>2020-08-05</td>\n",
+       "      <td>1908254</td>\n",
+       "      <td>39795</td>\n",
+       "      <td>1282215</td>\n",
+       "      <td>67.19</td>\n",
+       "      <td>2.09</td>\n",
+       "      <td>52509.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>185</th>\n",
+       "      <td>2020-08-06</td>\n",
+       "      <td>1964536</td>\n",
+       "      <td>40699</td>\n",
+       "      <td>1328336</td>\n",
+       "      <td>67.62</td>\n",
+       "      <td>2.07</td>\n",
+       "      <td>56282.0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "          date  confirmed  deaths    cured  recovery_rate  death_rate  \\\n",
+       "181 2020-08-02    1750723   37364  1145629          65.44        2.13   \n",
+       "182 2020-08-03    1803695   38135  1186203          65.77        2.11   \n",
+       "183 2020-08-04    1855745   38938  1230509          66.31        2.10   \n",
+       "184 2020-08-05    1908254   39795  1282215          67.19        2.09   \n",
+       "185 2020-08-06    1964536   40699  1328336          67.62        2.07   \n",
+       "\n",
+       "     new_confirmed  \n",
+       "181        54735.0  \n",
+       "182        52972.0  \n",
+       "183        52050.0  \n",
+       "184        52509.0  \n",
+       "185        56282.0  "
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "national = cases.groupby(\"date\", as_index=False)[[\"confirmed\", \"deaths\", \"cured\"]].sum()\n",
+    "national[\"recovery_rate\"] = (national[\"cured\"] / national[\"confirmed\"] * 100).round(2)\n",
+    "national[\"death_rate\"] = (national[\"deaths\"] / national[\"confirmed\"] * 100).round(2)\n",
+    "national[\"new_confirmed\"] = national[\"confirmed\"].diff().fillna(national[\"confirmed\"])\n",
+    "\n",
+    "national.tail()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "6628c600",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.336798Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.336148Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.342258Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.341438Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "As of 2020-08-06:\n",
+      "  Total confirmed : 1,964,536\n",
+      "  Total recovered : 1,328,336\n",
+      "  Total deaths    : 40,699\n",
+      "  Recovery rate   : 67.62%\n",
+      "  Death rate      : 2.07%\n"
+     ]
+    }
+   ],
+   "source": [
+    "latest_date = cases[\"date\"].max()\n",
+    "latest_row = national.iloc[-1]\n",
+    "\n",
+    "print(f\"As of {latest_date.date()}:\")\n",
+    "print(f\"  Total confirmed : {latest_row['confirmed']:,}\")\n",
+    "print(f\"  Total recovered : {latest_row['cured']:,}\")\n",
+    "print(f\"  Total deaths    : {latest_row['deaths']:,}\")\n",
+    "print(f\"  Recovery rate   : {latest_row['recovery_rate']}%\")\n",
+    "print(f\"  Death rate      : {latest_row['death_rate']}%\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "af65c3f7",
+   "metadata": {},
+   "source": [
+    "## 6. State-Wise Snapshot (latest date)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "736bc34f",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.344253Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.343624Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.356089Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.355229Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>state</th>\n",
+       "      <th>confirmed</th>\n",
+       "      <th>deaths</th>\n",
+       "      <th>cured</th>\n",
+       "      <th>recovery_rate</th>\n",
+       "      <th>death_rate</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>Maharashtra</td>\n",
+       "      <td>468265</td>\n",
+       "      <td>16476</td>\n",
+       "      <td>305521</td>\n",
+       "      <td>65.25</td>\n",
+       "      <td>3.52</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>Tamil Nadu</td>\n",
+       "      <td>273460</td>\n",
+       "      <td>4461</td>\n",
+       "      <td>214815</td>\n",
+       "      <td>78.55</td>\n",
+       "      <td>1.63</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>Andhra Pradesh</td>\n",
+       "      <td>186461</td>\n",
+       "      <td>1681</td>\n",
+       "      <td>104354</td>\n",
+       "      <td>55.97</td>\n",
+       "      <td>0.90</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>Karnataka</td>\n",
+       "      <td>151449</td>\n",
+       "      <td>2804</td>\n",
+       "      <td>74679</td>\n",
+       "      <td>49.31</td>\n",
+       "      <td>1.85</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>Delhi</td>\n",
+       "      <td>140232</td>\n",
+       "      <td>4044</td>\n",
+       "      <td>126116</td>\n",
+       "      <td>89.93</td>\n",
+       "      <td>2.88</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>Uttar Pradesh</td>\n",
+       "      <td>104388</td>\n",
+       "      <td>1857</td>\n",
+       "      <td>60558</td>\n",
+       "      <td>58.01</td>\n",
+       "      <td>1.78</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>6</th>\n",
+       "      <td>West Bengal</td>\n",
+       "      <td>83800</td>\n",
+       "      <td>1846</td>\n",
+       "      <td>58962</td>\n",
+       "      <td>70.36</td>\n",
+       "      <td>2.20</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>7</th>\n",
+       "      <td>Telangana</td>\n",
+       "      <td>73050</td>\n",
+       "      <td>589</td>\n",
+       "      <td>52103</td>\n",
+       "      <td>71.33</td>\n",
+       "      <td>0.81</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>8</th>\n",
+       "      <td>Gujarat</td>\n",
+       "      <td>66669</td>\n",
+       "      <td>2556</td>\n",
+       "      <td>49433</td>\n",
+       "      <td>74.15</td>\n",
+       "      <td>3.83</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>9</th>\n",
+       "      <td>Bihar</td>\n",
+       "      <td>64770</td>\n",
+       "      <td>355</td>\n",
+       "      <td>42414</td>\n",
+       "      <td>65.48</td>\n",
+       "      <td>0.55</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "            state  confirmed  deaths   cured  recovery_rate  death_rate\n",
+       "0     Maharashtra     468265   16476  305521          65.25        3.52\n",
+       "1      Tamil Nadu     273460    4461  214815          78.55        1.63\n",
+       "2  Andhra Pradesh     186461    1681  104354          55.97        0.90\n",
+       "3       Karnataka     151449    2804   74679          49.31        1.85\n",
+       "4           Delhi     140232    4044  126116          89.93        2.88\n",
+       "5   Uttar Pradesh     104388    1857   60558          58.01        1.78\n",
+       "6     West Bengal      83800    1846   58962          70.36        2.20\n",
+       "7       Telangana      73050     589   52103          71.33        0.81\n",
+       "8         Gujarat      66669    2556   49433          74.15        3.83\n",
+       "9           Bihar      64770     355   42414          65.48        0.55"
+      ]
+     },
+     "execution_count": 10,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "latest = cases[cases[\"date\"] == latest_date].copy()\n",
+    "latest[\"recovery_rate\"] = (latest[\"cured\"] / latest[\"confirmed\"] * 100).round(2)\n",
+    "latest[\"death_rate\"] = (latest[\"deaths\"] / latest[\"confirmed\"] * 100).round(2)\n",
+    "latest = latest.sort_values(\"confirmed\", ascending=False).reset_index(drop=True)\n",
+    "\n",
+    "top10 = latest.head(10)\n",
+    "top10[[\"state\", \"confirmed\", \"deaths\", \"cured\", \"recovery_rate\", \"death_rate\"]]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "91a3203b",
+   "metadata": {},
+   "source": [
+    "**pivot_table**: confirmed cases by state and month, so we can see when each state's outbreak accelerated."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "0a563ec5",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.358122Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.357488Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.389793Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.388888Z"
+    }
+   },
+   "outputs": [
+{
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>month</th>\n",
+       "      <th>2020-03</th>\n",
+       "      <th>2020-04</th>\n",
+       "      <th>2020-05</th>\n",
+       "      <th>2020-06</th>\n",
+       "      <th>2020-07</th>\n",
+       "      <th>2020-08</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>state</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>Andhra Pradesh</th>\n",
+       "      <td>39</td>\n",
+       "      <td>1292</td>\n",
+       "      <td>2237</td>\n",
+       "      <td>10322</td>\n",
+       "      <td>116666</td>\n",
+       "      <td>55904</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>Delhi</th>\n",
+       "      <td>96</td>\n",
+       "      <td>3342</td>\n",
+       "      <td>15110</td>\n",
+       "      <td>66612</td>\n",
+       "      <td>49242</td>\n",
+       "      <td>5829</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>Karnataka</th>\n",
+       "      <td>82</td>\n",
+       "      <td>452</td>\n",
+       "      <td>2387</td>\n",
+       "      <td>11373</td>\n",
+       "      <td>104337</td>\n",
+       "      <td>32817</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>Maharashtra</th>\n",
+       "      <td>218</td>\n",
+       "      <td>9699</td>\n",
+       "      <td>55253</td>\n",
+       "      <td>104715</td>\n",
+       "      <td>241915</td>\n",
+       "      <td>56467</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>Tamil Nadu</th>\n",
+       "      <td>73</td>\n",
+       "      <td>2088</td>\n",
+       "      <td>19022</td>\n",
+       "      <td>65040</td>\n",
+       "      <td>153754</td>\n",
+       "      <td>33482</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "month           2020-03  2020-04  2020-05  2020-06  2020-07  2020-08\n",
+       "state                                                               \n",
+       "Andhra Pradesh       39     1292     2237    10322   116666    55904\n",
+       "Delhi                96     3342    15110    66612    49242     5829\n",
+       "Karnataka            82      452     2387    11373   104337    32817\n",
+       "Maharashtra         218     9699    55253   104715   241915    56467\n",
+       "Tamil Nadu           73     2088    19022    65040   153754    33482"
+      ]
+     },
+     "execution_count": 11,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "cases[\"month\"] = cases[\"date\"].dt.strftime(\"%Y-%m\")\n",
+    "month_pivot = cases[cases[\"state\"].isin(top10[\"state\"].head(5))].pivot_table(\n",
+    "    values=\"new_cases\", index=\"state\", columns=\"month\", aggfunc=\"sum\", fill_value=0\n",
+    ")\n",
+    "month_pivot"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "d7cd0017",
+   "metadata": {},
+   "source": [
+    "## 7. Visualisations (12 charts)\n",
+    "\n",
+    "We'll work through national trends, state comparisons, and relationships between metrics — using both Matplotlib and Seaborn, matching the Module 1 handbook patterns."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "f7c89c01",
+   "metadata": {},
+   "source": [
+    "### Chart 1 — National cumulative trend"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "232c4243",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2026-08-21T02:52:19.391884Z",
+     "iopub.status.busy": "2026-08-21T02:52:19.391247Z",
+     "iopub.status.idle": "2026-08-21T02:52:19.601018Z",
+     "shell.execute_reply": "2026-08-21T02:52:19.599976Z"
+    }
+   },
+   "outputs": [
